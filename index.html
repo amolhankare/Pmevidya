@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Schedule Viewer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Daily Schedule Viewer</h1>
+
+    <section id="channelDetails" class="channel-details">
+      <img src="https://pmevidya.education.gov.in/images/e-vidya-logo-new.jpg" alt="PM eVidya Logo" class="channel-logo" />
+      <div class="channel-info">
+        <h2>CHANNEL DETAILS</h2>
+        <p><strong>Channel Name:</strong> PM eVidya MH115</p>
+        <p><strong>Managed By:</strong> </p>
+        <p><strong>Domain Name:</strong> Domain Name</p>
+        <p><strong>Scope of the channel:</strong> Class 3rd and 8th</p>
+      </div>
+    </section>
+
+    <label for="datePicker">Select Date:</label>
+    <input type="date" id="datePicker" />
+    <div id="scheduleContainer">
+      <p>Loading schedule...</p>
+    </div>
+  </div>
+
+  <script>
+    const sheetId = '1W594bhfvXDFNIfc2LzkXbEv0kcfUUhaB-5BgxP9Yrmw';
+    const sheetName = 'New shedule for 2025'; // Adjust if needed
+    // Public CSV export URL for the sheet tab
+    const baseCsvUrl = "https://docs.google.com/spreadsheets/d/" + sheetId + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
+    // Use a public CORS proxy to avoid CORS issues
+    // Replaced with allorigins.win proxy for better reliability without manual activation
+    const corsProxy = "https://api.allorigins.win/raw?url=";
+    const csvUrl = corsProxy + encodeURIComponent(baseCsvUrl);
+
+    const datePicker = document.getElementById('datePicker');
+    const scheduleContainer = document.getElementById('scheduleContainer');
+
+    // Format date to match sheet date format (e.g., "07-08-2025")
+    function formatDateForSheet(date) {
+      const day = ("0" + date.getDate()).slice(-2);
+      const month = ("0" + (date.getMonth() + 1)).slice(-2);
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+
+    // Parse CSV text to array of objects with basic quoted field support
+    function parseCSV(csvText) {
+      const lines = csvText.trim().split('\n');
+
+      // Find header row index by searching for a line containing "Date"
+      let headerIndex = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes("date")) {
+          headerIndex = i;
+          break;
+        }
+      }
+
+      // Regex to split CSV line by commas not inside quotes
+      function splitCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current);
+        return result;
+      }
+      const headers = splitCSVLine(lines[headerIndex]).map(h => h.trim());
+      const data = lines.slice(headerIndex + 1).map(function(line) {
+        const values = splitCSVLine(line);
+        const obj = {};
+        headers.forEach(function(header, i) {
+          obj[header] = values[i] ? values[i].trim() : '';
+        });
+        return obj;
+      });
+      console.log("CSV Headers:", headers);
+      console.log("Sample data row:", data[0]);
+      return data;
+    }
+
+    // Filter schedule by date string
+    function filterScheduleByDate(data, dateStr) {
+      console.log("Filtering schedule for date:", dateStr);
+      console.log("Sample data row:", data[0]);
+      // Find the date column header dynamically
+      const headers = Object.keys(data[0]);
+      const dateHeader = headers.find(h => h.toLowerCase().includes("date"));
+      console.log("Detected date column header:", dateHeader);
+
+      // Collect all unique dates for debugging
+      const uniqueDates = new Set();
+      data.forEach(row => {
+        if (row[dateHeader]) uniqueDates.add(row[dateHeader].trim());
+      });
+      console.log("Unique dates in data:", Array.from(uniqueDates).sort());
+
+      // Filter by the detected date column header, trimming spaces
+      return data.filter(function(row) {
+        return row[dateHeader] && row[dateHeader].trim() === dateStr;
+      });
+    }
+
+    // Helper to parse duration string "HH:MM:SS" or "H:MM:SS" to seconds
+    function parseDurationToSeconds(durationStr) {
+      const parts = durationStr.split(':').map(Number);
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      } else if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+      }
+      return 0;
+    }
+
+    // Helper to format seconds to "HH:MM:SS AM/PM"
+    function formatSecondsToTime(seconds) {
+      let totalSeconds = seconds;
+      let hours = Math.floor(totalSeconds / 3600);
+      totalSeconds %= 3600;
+      let minutes = Math.floor(totalSeconds / 60);
+      let secs = totalSeconds % 60;
+
+      let ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      if (hours === 0) hours = 12;
+
+      return (
+        String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(secs).padStart(2, '0') + ' ' + ampm
+      );
+    }
+
+    // Render schedule data with Programme Timing column, only selected columns
+    function renderSchedule(data, dateStr) {
+      if (data.length === 0) {
+        scheduleContainer.innerHTML = "<p>No schedule found for " + dateStr + "</p>";
+        return;
+      }
+      var html = "<h2>Schedule for " + dateStr + "</h2>";
+      html += "<table><thead><tr>";
+      // Only these columns from the sheet
+      const selectedHeaders = [
+        "Subject",
+        "Course Name",
+        "Title / Topic",
+        "Total Duration (HH:MM:SS)"
+      ];
+      html += "<th>" + selectedHeaders[0] + "</th>";
+      html += "<th>" + selectedHeaders[1] + "</th>";
+      html += "<th>" + selectedHeaders[2] + "</th>";
+      html += "<th>" + selectedHeaders[3] + "</th>";
+      html += "<th>Programme Timing</th>";
+      html += "</tr></thead><tbody>";
+  
+      // Start time at 12:00 AM in seconds
+      let cumulativeSeconds = 0;
+  
+      data.forEach(function(row) {
+        html += "<tr>";
+        html += "<td>" + (row[selectedHeaders[0]] || "") + "</td>";
+        html += "<td>" + (row[selectedHeaders[1]] || "") + "</td>";
+        html += "<td>" + (row[selectedHeaders[2]] || "") + "</td>";
+        html += "<td>" + (row[selectedHeaders[3]] || "") + "</td>";
+  
+        // Parse duration and calculate programme timing
+        const durationStr = row["Total Duration (HH:MM:SS)"] || "";
+        const durationSeconds = parseDurationToSeconds(durationStr);
+        const programmeTime = formatSecondsToTime(cumulativeSeconds);
+        cumulativeSeconds += durationSeconds;
+  
+        html += "<td>" + programmeTime + "</td>";
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+      scheduleContainer.innerHTML = html;
+    }
+
+    async function loadSchedule(date) {
+      scheduleContainer.innerHTML = "<p>Loading schedule...</p>";
+      try {
+        const response = await fetch(csvUrl);
+        if (!response.ok) throw new Error("Failed to fetch schedule data");
+        const csvText = await response.text();
+        const data = parseCSV(csvText);
+        const dateStr = formatDateForSheet(date);
+        const filtered = filterScheduleByDate(data, dateStr);
+        renderSchedule(filtered, dateStr);
+      } catch (error) {
+        scheduleContainer.innerHTML = "<p>Error loading schedule: " + error.message + "</p>";
+      }
+    }
+
+    // Initialize date picker to today
+    const today = new Date();
+    // Format date as YYYY-MM-DD for input value
+    function formatDateForInput(date) {
+      const day = ("0" + date.getDate()).slice(-2);
+      const month = ("0" + (date.getMonth() + 1)).slice(-2);
+      const year = date.getFullYear();
+      return `${year}-${month}-${day}`;
+    }
+    datePicker.value = formatDateForInput(today);
+    loadSchedule(today);
+
+    datePicker.addEventListener('change', function() {
+      const selectedDate = new Date(datePicker.value);
+      loadSchedule(selectedDate);
+    });
+  </script>
+</body>
+</html>
