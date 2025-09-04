@@ -173,20 +173,20 @@
       let cumulativeSeconds = 0;
   
       data.forEach(function(row) {
-        html += "<tr>";
-        html += "<td>" + (row[selectedHeaders[0]] || "") + "</td>";
-        html += "<td>" + (row[selectedHeaders[1]] || "") + "</td>";
-        html += "<td>" + (row[selectedHeaders[2]] || "") + "</td>";
-        html += "<td>" + (row[selectedHeaders[3]] || "") + "</td>";
+      html += "<tr>";
+      html += "<td data-label=\"" + selectedHeaders[0] + "\">" + (row[selectedHeaders[0]] || "") + "</td>";
+      html += "<td data-label=\"" + selectedHeaders[1] + "\">" + (row[selectedHeaders[1]] || "") + "</td>";
+      html += "<td data-label=\"" + selectedHeaders[2] + "\">" + (row[selectedHeaders[2]] || "") + "</td>";
+      html += "<td data-label=\"" + selectedHeaders[3] + "\">" + (row[selectedHeaders[3]] || "") + "</td>";
   
-        // Parse duration and calculate programme timing
-        const durationStr = row["Total Duration (HH:MM:SS)"] || "";
-        const durationSeconds = parseDurationToSeconds(durationStr);
-        const programmeTime = formatSecondsToTime(cumulativeSeconds);
-        cumulativeSeconds += durationSeconds;
+      // Parse duration and calculate programme timing
+      const durationStr = row["Total Duration (HH:MM:SS)"] || "";
+      const durationSeconds = parseDurationToSeconds(durationStr);
+      const programmeTime = formatSecondsToTime(cumulativeSeconds);
+      cumulativeSeconds += durationSeconds;
   
-        html += "<td>" + programmeTime + "</td>";
-        html += "</tr>";
+      html += "<td data-label=\"Programme Timing\">" + programmeTime + "</td>";
+      html += "</tr>";
       });
       html += "</tbody></table>";
       scheduleContainer.innerHTML = html;
